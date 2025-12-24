@@ -15,7 +15,7 @@ from contextlib import AsyncExitStack
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from langchain_mcp_adapters.langchain import load_mcp_tools
+from langchain_mcp_adapters.tools import load_mcp_tools
 
 from ..utils.logger import get_logger
 
@@ -92,10 +92,17 @@ class MCPClientLoader:
             logger.warning("No MCP servers configured")
             return []
 
+        # Filter enabled servers
+        enabled_servers = [s for s in servers if s.get("enabled", True)]
+
+        if not enabled_servers:
+            logger.info("No enabled MCP servers found")
+            return []
+
         self.stack = AsyncExitStack()
         await self.stack.__aenter__()
 
-        for server_config in servers:
+        for server_config in enabled_servers:
             try:
                 await self._load_server(server_config)
             except Exception as e:
@@ -226,42 +233,3 @@ async def load_mcp_tools_async(config_path: Optional[Path] = None) -> Tuple[Asyn
     loader = MCPClientLoader(config_path)
     await loader.load_all_servers()
     return loader.stack, loader.all_tools
-
-
-if __name__ == "__main__":
-    """Test MCP client loader"""
-    import sys
-
-    async def test():
-        print("=== MCP Client Loader Test ===\n")
-
-        # Load MCP servers
-        async with MCPClientLoader() as loader:
-            tools = loader.get_all_tools()
-
-            print(f"Loaded {len(tools)} tools from MCP servers\n")
-
-            if tools:
-                print("Available tools:")
-                for i, tool in enumerate(tools, 1):
-                    print(f"{i}. {tool.name}")
-                    if hasattr(tool, 'description'):
-                        print(f"   Description: {tool.description}")
-                    print()
-            else:
-                print("No tools loaded. Check your MCP server configuration.")
-                print(f"Config file: {loader.config_path}")
-                print("\nMake sure:")
-                print("1. MCP servers are properly configured in mcp_servers.json")
-                print("2. MCP server commands are correct and executable")
-                print("3. All required dependencies are installed")
-
-    try:
-        asyncio.run(test())
-    except KeyboardInterrupt:
-        print("\nInterrupted by user")
-    except Exception as e:
-        print(f"\nError: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
