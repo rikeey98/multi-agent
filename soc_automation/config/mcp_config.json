@@ -1,0 +1,38 @@
+{
+  "mcpServers": {
+    "mongodb": {
+      "command": "python",
+      "args": [
+        "-m",
+        "soc_automation.mcp_servers.mongodb_server"
+      ],
+      "env": {
+        "MONGODB_URI": "${MONGODB_URI}",
+        "MONGODB_DB": "${MONGODB_DB}"
+      }
+    },
+    "oracle": {
+      "command": "python",
+      "args": [
+        "-m",
+        "soc_automation.mcp_servers.oracle_server"
+      ],
+      "env": {
+        "ORACLE_USER": "${ORACLE_USER}",
+        "ORACLE_PASSWORD": "${ORACLE_PASSWORD}",
+        "ORACLE_DSN": "${ORACLE_DSN}"
+      }
+    },
+    "linux_tools": {
+      "command": "python",
+      "args": [
+        "-m",
+        "soc_automation.mcp_servers.linux_tools_server"
+      ],
+      "env": {
+        "LOG_DIR": "${LOG_DIR}",
+        "SOP_DIR": "${SOP_DIR}"
+      }
+    }
+  }
+}
