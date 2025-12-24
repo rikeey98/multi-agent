@@ -178,6 +178,52 @@ uv run python -m soc_automation.utils.state
 uv run python -m soc_automation.utils.logger
 ```
 
+### MCP Server Integration
+
+SOC Automation supports integration with your own MCP (Model Context Protocol) servers via stdio connection.
+
+#### Test MCP Connection
+
+```bash
+# Test MCP server loading
+uv run python -m soc_automation.mcp_client
+
+# Test MCP helpers
+uv run python -m soc_automation.mcp_client.helpers
+```
+
+#### Add Your MCP Servers
+
+1. Edit `soc_automation/config/mcp_servers.json`:
+
+```json
+{
+  "servers": [
+    {
+      "name": "my_mongodb",
+      "command": "python",
+      "args": ["-m", "my_mcp_servers.mongodb"],
+      "env": {
+        "MONGODB_URI": "${MONGODB_URI}"
+      },
+      "enabled": true
+    }
+  ]
+}
+```
+
+2. Run with MCP tools:
+
+```bash
+# With MCP tools (default)
+uv run python main.py /path/to/log.log
+
+# Without MCP tools
+uv run python main.py /path/to/log.log --no-mcp
+```
+
+**📖 See [MCP_INTEGRATION_GUIDE.md](MCP_INTEGRATION_GUIDE.md) for detailed instructions.**
+
 ## Workflow
 
 The system follows this workflow:

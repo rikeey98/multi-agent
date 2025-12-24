@@ -38,9 +38,14 @@ from soc_automation.agents.data_collector import create_data_collector_agent, DE
 from soc_automation.agents.decision_maker import create_decision_maker_agent, DEFAULT_TOOLS as DECISION_TOOLS
 from soc_automation.agents.auto_executor import create_auto_executor_agent, DEFAULT_TOOLS as EXECUTOR_TOOLS
 from soc_automation.agents.notification import create_notification_agent, DEFAULT_TOOLS as NOTIFICATION_TOOLS
+from soc_automation.mcp_client import MCPClientLoader
+from soc_automation.mcp_client.helpers import filter_enabled_servers
 
 
 logger = get_logger()
+
+# Global MCP tools storage
+_mcp_tools = []
 
 
 async def error_analyzer_node(state: AgentState) -> AgentState:
@@ -59,8 +64,11 @@ async def error_analyzer_node(state: AgentState) -> AgentState:
             api_key=settings.openai.api_key
         )
 
+        # Combine default tools with MCP tools
+        all_tools = list(ERROR_TOOLS) + _mcp_tools
+
         # Create agent
-        agent = create_error_analyzer_agent(llm, ERROR_TOOLS)
+        agent = create_error_analyzer_agent(llm, all_tools)
 
         # Prepare input
         from langchain_core.messages import HumanMessage
@@ -115,8 +123,11 @@ async def sop_searcher_node(state: AgentState) -> AgentState:
             api_key=settings.openai.api_key
         )
 
+        # Combine default tools with MCP tools
+        all_tools = list(SOP_TOOLS) + _mcp_tools
+
         # Create agent
-        agent = create_sop_searcher_agent(llm, SOP_TOOLS)
+        agent = create_sop_searcher_agent(llm, all_tools)
 
         # Prepare input
         from langchain_core.messages import HumanMessage
@@ -158,8 +169,11 @@ async def data_collector_node(state: AgentState) -> AgentState:
             api_key=settings.openai.api_key
         )
 
+        # Combine default tools with MCP tools
+        all_tools = list(DATA_TOOLS) + _mcp_tools
+
         # Create agent
-        agent = create_data_collector_agent(llm, DATA_TOOLS)
+        agent = create_data_collector_agent(llm, all_tools)
 
         # Prepare input
         from langchain_core.messages import HumanMessage
@@ -199,8 +213,11 @@ async def decision_maker_node(state: AgentState) -> AgentState:
             api_key=settings.openai.api_key
         )
 
+        # Combine default tools with MCP tools
+        all_tools = list(DECISION_TOOLS) + _mcp_tools
+
         # Create agent
-        agent = create_decision_maker_agent(llm, DECISION_TOOLS)
+        agent = create_decision_maker_agent(llm, all_tools)
 
         # Prepare input
         from langchain_core.messages import HumanMessage
@@ -265,8 +282,11 @@ async def auto_executor_node(state: AgentState) -> AgentState:
             api_key=settings.openai.api_key
         )
 
+        # Combine default tools with MCP tools
+        all_tools = list(EXECUTOR_TOOLS) + _mcp_tools
+
         # Create agent
-        agent = create_auto_executor_agent(llm, EXECUTOR_TOOLS)
+        agent = create_auto_executor_agent(llm, all_tools)
 
         # Prepare input
         from langchain_core.messages import HumanMessage
@@ -307,8 +327,11 @@ async def notification_node(state: AgentState) -> AgentState:
             api_key=settings.openai.api_key
         )
 
+        # Combine default tools with MCP tools
+        all_tools = list(NOTIFICATION_TOOLS) + _mcp_tools
+
         # Create agent
-        agent = create_notification_agent(llm, NOTIFICATION_TOOLS)
+        agent = create_notification_agent(llm, all_tools)
 
         # Prepare input
         from langchain_core.messages import HumanMessage
@@ -402,7 +425,7 @@ def create_workflow() -> StateGraph:
     return workflow
 
 
-async def run_workflow(log_file_path: str, trigger_event: str = "manual") -> dict:
+async def run_workflow(log_file_path: str, trigger_event: str = "manual", use_mcp: bool = True) -> dict:
     """
     Run the complete workflow.
 
@@ -411,10 +434,13 @@ async def run_workflow(log_file_path: str, trigger_event: str = "manual") -> dic
     Args:
         log_file_path: Path to log file
         trigger_event: Event that triggered the workflow
+        use_mcp: Whether to load MCP tools (default: True)
 
     Returns:
         dict: Workflow result
     """
+    global _mcp_tools
+
     logger.info(f"Starting workflow for: {log_file_path}")
 
     # Create initial state
@@ -423,6 +449,20 @@ async def run_workflow(log_file_path: str, trigger_event: str = "manual") -> dic
     # Create workflow logger
     workflow_logger = get_workflow_logger(initial_state["workflow_id"])
     workflow_logger.info(f"Workflow started for: {log_file_path}")
+
+    # Load MCP tools if enabled
+    mcp_loader = None
+    if use_mcp:
+        try:
+            logger.info("Loading MCP tools...")
+            mcp_loader = MCPClientLoader()
+            await mcp_loader.load_all_servers()
+            _mcp_tools = mcp_loader.get_all_tools()
+            logger.info(f"Loaded {len(_mcp_tools)} MCP tools")
+        except Exception as e:
+            logger.warning(f"Failed to load MCP tools: {e}")
+            logger.warning("Continuing without MCP tools")
+            _mcp_tools = []
 
     try:
         # Create workflow
@@ -452,6 +492,14 @@ async def run_workflow(log_file_path: str, trigger_event: str = "manual") -> dic
             "workflow_id": initial_state["workflow_id"],
             "error": str(e)
         }
+    finally:
+        # Clean up MCP connections
+        if mcp_loader:
+            try:
+                await mcp_loader.close()
+                logger.info("MCP connections closed")
+            except Exception as e:
+                logger.warning(f"Error closing MCP connections: {e}")
 
 
 async def main_async(args):
@@ -471,10 +519,11 @@ async def main_async(args):
     logger.info("=" * 80)
     logger.info(f"Log File: {log_file}")
     logger.info(f"Model: {settings.openai.model}")
+    logger.info(f"MCP Tools: {'Enabled' if not args.no_mcp else 'Disabled'}")
     logger.info("=" * 80)
 
     # Run workflow
-    result = await run_workflow(log_file, trigger_event="cli")
+    result = await run_workflow(log_file, trigger_event="cli", use_mcp=not args.no_mcp)
 
     # Print result
     logger.info("\n" + "=" * 80)
@@ -512,6 +561,11 @@ def main():
         "--model",
         default=None,
         help="OpenAI model to use (overrides env)"
+    )
+    parser.add_argument(
+        "--no-mcp",
+        action="store_true",
+        help="Disable MCP tools loading"
     )
 
     args = parser.parse_args()
