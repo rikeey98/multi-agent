@@ -1,0 +1,97 @@
+{
+  "servers": [
+    {
+      "name": "mongodb",
+      "description": "MongoDB MCP Server - Replace with your own implementation",
+      "command": "python",
+      "args": [
+        "-m",
+        "your_mongodb_mcp_server"
+      ],
+      "env": {
+        "MONGODB_URI": "${MONGODB_URI}",
+        "MONGODB_DB": "${MONGODB_DB}"
+      },
+      "enabled": false,
+      "comment": "Set enabled to true and update command/args to use your MongoDB MCP server"
+    },
+    {
+      "name": "oracle",
+      "description": "Oracle DB MCP Server - Replace with your own implementation",
+      "command": "python",
+      "args": [
+        "-m",
+        "your_oracle_mcp_server"
+      ],
+      "env": {
+        "ORACLE_USER": "${ORACLE_USER}",
+        "ORACLE_PASSWORD": "${ORACLE_PASSWORD}",
+        "ORACLE_DSN": "${ORACLE_DSN}"
+      },
+      "enabled": false,
+      "comment": "Set enabled to true and update command/args to use your Oracle MCP server"
+    }
+  ],
+  "instructions": {
+    "how_to_add_your_mcp_server": [
+      "1. Replace 'your_mongodb_mcp_server' with your actual MCP server module path",
+      "   Example: 'my_mcp_servers.mongodb_server'",
+      "",
+      "2. If your MCP server is a standalone script, use the full path:",
+      "   {",
+      "     \"command\": \"python\",",
+      "     \"args\": [\"/path/to/your/mcp_server.py\"]",
+      "   }",
+      "",
+      "3. If your MCP server is a uvx package:",
+      "   {",
+      "     \"command\": \"uvx\",",
+      "     \"args\": [\"your-mcp-package\"]",
+      "   }",
+      "",
+      "4. Set 'enabled' to true to activate the server",
+      "",
+      "5. Environment variables are automatically expanded from .env file",
+      "",
+      "6. Test your MCP server connection:",
+      "   uv run python -m soc_automation.mcp_client"
+    ],
+    "examples": [
+      {
+        "description": "Example: MongoDB MCP server as a module",
+        "config": {
+          "name": "mongodb",
+          "command": "python",
+          "args": ["-m", "my_mcp_servers.mongodb"],
+          "env": {
+            "MONGODB_URI": "mongodb://localhost:27017"
+          },
+          "enabled": true
+        }
+      },
+      {
+        "description": "Example: Oracle MCP server as a script",
+        "config": {
+          "name": "oracle",
+          "command": "python",
+          "args": ["/home/user/mcp_servers/oracle_server.py"],
+          "env": {
+            "ORACLE_USER": "admin",
+            "ORACLE_PASSWORD": "password",
+            "ORACLE_DSN": "localhost:1521/ORCL"
+          },
+          "enabled": true
+        }
+      },
+      {
+        "description": "Example: Custom MCP server with uvx",
+        "config": {
+          "name": "custom",
+          "command": "uvx",
+          "args": ["my-custom-mcp-server", "--config", "/path/to/config.json"],
+          "enabled": true
+        }
+      }
+    ]
+  }
+}
