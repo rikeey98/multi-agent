@@ -2,18 +2,19 @@
   "servers": [
     {
       "name": "mongodb",
-      "description": "MongoDB MCP Server - Replace with your own implementation",
-      "command": "python",
+      "description": "MongoDB MCP Server with FastMCP",
+      "command": "uv",
       "args": [
+        "run",
+        "python",
         "-m",
-        "your_mongodb_mcp_server"
+        "soc_automation.mcp_servers.mongodb_mcp"
       ],
       "env": {
-        "MONGODB_URI": "${MONGODB_URI}",
-        "MONGODB_DB": "${MONGODB_DB}"
+        "MONGODB_URI": "${MONGODB_URI}"
       },
       "enabled": false,
-      "comment": "Set enabled to true and update command/args to use your MongoDB MCP server"
+      "comment": "Set enabled to true to activate MongoDB MCP server"
     },
     {
       "name": "oracle",
