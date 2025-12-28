@@ -241,7 +241,7 @@ def create_sop_searcher_agent(llm, tools: Optional[List] = None):
     agent = create_react_agent(
         model=llm,
         tools=tools,
-        state_modifier=get_agent_prompt("sop_searcher")
+        messages_modifier=get_agent_prompt("sop_searcher")
     )
 
     return agent

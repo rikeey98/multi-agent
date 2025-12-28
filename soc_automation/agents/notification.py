@@ -264,7 +264,7 @@ def create_notification_agent(llm, tools: Optional[List] = None):
     agent = create_react_agent(
         model=llm,
         tools=tools,
-        state_modifier=get_agent_prompt("notification")
+        messages_modifier=get_agent_prompt("notification")
     )
 
     return agent

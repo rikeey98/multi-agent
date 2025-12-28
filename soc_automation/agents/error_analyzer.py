@@ -198,7 +198,7 @@ def create_error_analyzer_agent(llm, tools: Optional[List] = None):
     agent = create_react_agent(
         model=llm,
         tools=tools,
-        state_modifier=get_agent_prompt("error_analyzer")
+        messages_modifier=get_agent_prompt("error_analyzer")
     )
 
     return agent
