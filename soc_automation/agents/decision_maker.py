@@ -228,7 +228,7 @@ def create_decision_maker_agent(llm, tools: Optional[List] = None):
     agent = create_react_agent(
         model=llm,
         tools=tools,
-        state_modifier=get_agent_prompt("decision_maker")
+        messages_modifier=get_agent_prompt("decision_maker")
     )
 
     return agent

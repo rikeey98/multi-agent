@@ -247,7 +247,7 @@ def create_auto_executor_agent(llm, tools: Optional[List] = None):
     agent = create_react_agent(
         model=llm,
         tools=tools,
-        state_modifier=get_agent_prompt("auto_executor")
+        messages_modifier=get_agent_prompt("auto_executor")
     )
 
     return agent

@@ -309,7 +309,7 @@ def create_data_collector_agent(llm, tools: Optional[List] = None):
     agent = create_react_agent(
         model=llm,
         tools=tools,
-        state_modifier=get_agent_prompt("data_collector")
+        messages_modifier=get_agent_prompt("data_collector")
     )
 
     return agent
