@@ -58,11 +58,14 @@ async def error_analyzer_node(state: AgentState) -> AgentState:
 
     try:
         # Create LLM
-        llm = ChatOpenAI(
-            model=settings.openai.model,
-            temperature=settings.openai.temperature,
-            api_key=settings.openai.api_key
-        )
+        llm_kwargs = {
+            "model": settings.openai.model,
+            "temperature": settings.openai.temperature,
+            "api_key": settings.openai.api_key
+        }
+        if settings.openai.base_url:
+            llm_kwargs["base_url"] = settings.openai.base_url
+        llm = ChatOpenAI(**llm_kwargs)
 
         # Combine default tools with MCP tools
         all_tools = list(ERROR_TOOLS) + _mcp_tools
@@ -117,11 +120,14 @@ async def sop_searcher_node(state: AgentState) -> AgentState:
 
     try:
         # Create LLM
-        llm = ChatOpenAI(
-            model=settings.openai.model,
-            temperature=settings.openai.temperature,
-            api_key=settings.openai.api_key
-        )
+        llm_kwargs = {
+            "model": settings.openai.model,
+            "temperature": settings.openai.temperature,
+            "api_key": settings.openai.api_key
+        }
+        if settings.openai.base_url:
+            llm_kwargs["base_url"] = settings.openai.base_url
+        llm = ChatOpenAI(**llm_kwargs)
 
         # Combine default tools with MCP tools
         all_tools = list(SOP_TOOLS) + _mcp_tools
@@ -163,11 +169,14 @@ async def data_collector_node(state: AgentState) -> AgentState:
 
     try:
         # Create LLM
-        llm = ChatOpenAI(
-            model=settings.openai.model,
-            temperature=settings.openai.temperature,
-            api_key=settings.openai.api_key
-        )
+        llm_kwargs = {
+            "model": settings.openai.model,
+            "temperature": settings.openai.temperature,
+            "api_key": settings.openai.api_key
+        }
+        if settings.openai.base_url:
+            llm_kwargs["base_url"] = settings.openai.base_url
+        llm = ChatOpenAI(**llm_kwargs)
 
         # Combine default tools with MCP tools
         all_tools = list(DATA_TOOLS) + _mcp_tools
@@ -207,11 +216,14 @@ async def decision_maker_node(state: AgentState) -> AgentState:
 
     try:
         # Create LLM
-        llm = ChatOpenAI(
-            model=settings.openai.model,
-            temperature=settings.openai.temperature,
-            api_key=settings.openai.api_key
-        )
+        llm_kwargs = {
+            "model": settings.openai.model,
+            "temperature": settings.openai.temperature,
+            "api_key": settings.openai.api_key
+        }
+        if settings.openai.base_url:
+            llm_kwargs["base_url"] = settings.openai.base_url
+        llm = ChatOpenAI(**llm_kwargs)
 
         # Combine default tools with MCP tools
         all_tools = list(DECISION_TOOLS) + _mcp_tools
@@ -276,11 +288,14 @@ async def auto_executor_node(state: AgentState) -> AgentState:
             return state
 
         # Create LLM
-        llm = ChatOpenAI(
-            model=settings.openai.model,
-            temperature=settings.openai.temperature,
-            api_key=settings.openai.api_key
-        )
+        llm_kwargs = {
+            "model": settings.openai.model,
+            "temperature": settings.openai.temperature,
+            "api_key": settings.openai.api_key
+        }
+        if settings.openai.base_url:
+            llm_kwargs["base_url"] = settings.openai.base_url
+        llm = ChatOpenAI(**llm_kwargs)
 
         # Combine default tools with MCP tools
         all_tools = list(EXECUTOR_TOOLS) + _mcp_tools
@@ -321,11 +336,14 @@ async def notification_node(state: AgentState) -> AgentState:
 
     try:
         # Create LLM
-        llm = ChatOpenAI(
-            model=settings.openai.model,
-            temperature=settings.openai.temperature,
-            api_key=settings.openai.api_key
-        )
+        llm_kwargs = {
+            "model": settings.openai.model,
+            "temperature": settings.openai.temperature,
+            "api_key": settings.openai.api_key
+        }
+        if settings.openai.base_url:
+            llm_kwargs["base_url"] = settings.openai.base_url
+        llm = ChatOpenAI(**llm_kwargs)
 
         # Combine default tools with MCP tools
         all_tools = list(NOTIFICATION_TOOLS) + _mcp_tools
