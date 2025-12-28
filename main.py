@@ -33,7 +33,7 @@ from soc_automation.utils.state import (
 )
 from soc_automation.utils.logger import get_logger, get_workflow_logger
 from soc_automation.utils.workflow_storage import get_workflow_storage
-from soc_automation.agents.error_analyzer.main import run_error_analyzer
+from soc_automation.agents.error_analyzer.analyzer import run_error_analyzer
 from soc_automation.agents.sop_searcher import create_sop_searcher_agent, DEFAULT_TOOLS as SOP_TOOLS
 from soc_automation.agents.data_collector import create_data_collector_agent, DEFAULT_TOOLS as DATA_TOOLS
 from soc_automation.agents.decision_maker import create_decision_maker_agent, DEFAULT_TOOLS as DECISION_TOOLS
