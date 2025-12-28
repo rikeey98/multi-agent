@@ -21,6 +21,7 @@ load_dotenv()
 class OpenAISettings(BaseModel):
     """OpenAI API 설정"""
     api_key: str = Field(..., description="OpenAI API key")
+    base_url: Optional[str] = Field(default=None, description="Custom OpenAI API base URL")
     model: str = Field(default="gpt-4o-mini", description="Default model to use")
     temperature: float = Field(default=0.7, description="Model temperature")
     max_tokens: int = Field(default=2000, description="Max tokens for completion")
@@ -119,6 +120,7 @@ def load_settings() -> Settings:
         # OpenAI settings
         openai_settings = OpenAISettings(
             api_key=os.getenv("OPENAI_API_KEY", ""),
+            base_url=os.getenv("OPENAI_BASE_URL"),  # Optional custom base URL
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             temperature=float(os.getenv("OPENAI_TEMPERATURE", "0.7")),
             max_tokens=int(os.getenv("OPENAI_MAX_TOKENS", "2000"))

@@ -393,10 +393,14 @@ log_level = INFO
         print("Please set OPENAI_API_KEY in .env file")
         exit(1)
 
-    llm = ChatOpenAI(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        temperature=0.7
-    )
+    llm_kwargs = {
+        "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        "temperature": 0.7
+    }
+    base_url = os.getenv("OPENAI_BASE_URL")
+    if base_url:
+        llm_kwargs["base_url"] = base_url
+    llm = ChatOpenAI(**llm_kwargs)
 
     # Run auto executor
     async def test():
