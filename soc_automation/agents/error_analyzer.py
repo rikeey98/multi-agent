@@ -16,10 +16,10 @@ from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from langchain.agents import create_agent
 
-from ..config.agent_prompts import get_agent_prompt
-from ..utils.state import ErrorAnalysis, ErrorCategory
-from ..utils.error_patterns import match_error_pattern, classify_error_by_keywords
-from ..utils.logger import get_agent_logger
+from soc_automation.config.agent_prompts import get_agent_prompt
+from soc_automation.utils.state import ErrorAnalysis, ErrorCategory
+from soc_automation.utils.error_patterns import match_error_pattern, classify_error_by_keywords
+from soc_automation.utils.logger import get_agent_logger
 
 
 # Tools for Error Analyzer Agent
