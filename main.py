@@ -366,27 +366,22 @@ Execution Result: {json.dumps(state.get('execution_result', {}), default=str)}
         return state
 
 
-def should_continue(state: AgentState) -> str:
+def decide_next_after_decision_maker(state: AgentState) -> str:
     """
-    Determine next node based on state.
+    Decide next node after decision maker.
 
-    상태에 따라 다음 노드를 결정합니다.
+    의사결정 후 다음 노드를 결정합니다.
+
+    Args:
+        state: Current agent state
+
+    Returns:
+        str: Next node name ("auto_executor" or "notification")
     """
-    next_agent = state.get("next_agent", "END")
-
-    if state.get("workflow_status") == "FAILED":
-        return "notification"
-
-    if next_agent == "parallel_collection":
-        return "parallel_collection"
-    elif next_agent == "decision_maker":
-        return "decision_maker"
-    elif next_agent == "auto_executor":
+    resolution_plan = state.get("resolution_plan")
+    if resolution_plan and resolution_plan.get("auto_executable"):
         return "auto_executor"
-    elif next_agent == "notification":
-        return "notification"
-    else:
-        return END
+    return "notification"
 
 
 def create_workflow() -> StateGraph:
@@ -394,6 +389,9 @@ def create_workflow() -> StateGraph:
     Create LangGraph workflow.
 
     LangGraph 워크플로우를 생성합니다.
+
+    Returns:
+        StateGraph: Configured workflow graph
     """
     workflow = StateGraph(AgentState)
 
@@ -416,7 +414,7 @@ def create_workflow() -> StateGraph:
     # Conditional edges from decision_maker
     workflow.add_conditional_edges(
         "decision_maker",
-        lambda state: "auto_executor" if state.get("resolution_plan", {}).get("auto_executable") else "notification"
+        decide_next_after_decision_maker
     )
 
     workflow.add_edge("auto_executor", "notification")
