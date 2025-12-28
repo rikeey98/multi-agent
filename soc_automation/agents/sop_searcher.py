@@ -15,7 +15,7 @@ import re
 
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
 from ..config.agent_prompts import get_agent_prompt
 from ..utils.state import SOPResult
@@ -238,10 +238,10 @@ def create_sop_searcher_agent(llm, tools: Optional[List] = None):
     if tools is None:
         tools = DEFAULT_TOOLS
 
-    agent = create_react_agent(
+    agent = create_agent(
         model=llm,
         tools=tools,
-        messages_modifier=get_agent_prompt("sop_searcher")
+        system_prompt=get_agent_prompt("sop_searcher")
     )
 
     return agent
