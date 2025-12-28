@@ -7,7 +7,7 @@ MCP 클라이언트 로더 테스트
 import asyncio
 import sys
 
-from . import MCPClientLoader
+from soc_automation.mcp_client import MCPClientLoader
 
 
 async def test():

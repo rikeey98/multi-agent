@@ -17,7 +17,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from langchain_mcp_adapters.tools import load_mcp_tools
 
-from ..utils.logger import get_logger
+from soc_automation.utils.logger import get_logger
 
 
 logger = get_logger()

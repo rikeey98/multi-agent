@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from ..utils.logger import get_logger
+from soc_automation.utils.logger import get_logger
 
 
 logger = get_logger()

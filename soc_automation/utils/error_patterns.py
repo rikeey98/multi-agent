@@ -10,7 +10,7 @@ Error pattern definitions for SOC automation system.
 import re
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
-from .state import ErrorCategory
+from soc_automation.utils.state import ErrorCategory
 
 
 @dataclass
