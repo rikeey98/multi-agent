@@ -32,6 +32,7 @@ from soc_automation.utils.state import (
     ErrorCategory,
 )
 from soc_automation.utils.logger import get_logger, get_workflow_logger
+from soc_automation.utils.workflow_storage import get_workflow_storage
 from soc_automation.agents.error_analyzer import create_error_analyzer_agent, DEFAULT_TOOLS as ERROR_TOOLS
 from soc_automation.agents.sop_searcher import create_sop_searcher_agent, DEFAULT_TOOLS as SOP_TOOLS
 from soc_automation.agents.data_collector import create_data_collector_agent, DEFAULT_TOOLS as DATA_TOOLS
@@ -101,6 +102,17 @@ async def error_analyzer_node(state: AgentState) -> AgentState:
         state = update_state_with_error_analysis(state, error_analysis)
         logger.info("Error analysis completed")
 
+        # Save step result
+        storage = get_workflow_storage()
+        storage.save_step(
+            workflow_id=state["workflow_id"],
+            step_name="error_analyzer",
+            data={
+                "error_analysis": error_analysis,
+                "analysis_text": analysis_text
+            }
+        )
+
         return state
 
     except Exception as e:
@@ -150,7 +162,24 @@ SOP Directory: {settings.paths.sop_dir}
         # Run agent
         result = await agent.ainvoke({"messages": [HumanMessage(content=input_msg)]})
 
+        # Extract results
+        messages = result.get("messages", [])
+        sop_results_text = messages[-1].content if messages else "No SOP results"
+
         logger.info("SOP search completed")
+
+        # Save step result
+        storage = get_workflow_storage()
+        storage.save_step(
+            workflow_id=state["workflow_id"],
+            step_name="sop_searcher",
+            data={
+                "error_type": error_type,
+                "error_message": error_msg,
+                "sop_results": sop_results_text
+            }
+        )
+
         return state
 
     except Exception as e:
@@ -197,7 +226,24 @@ Log File: {state['log_file_path']}
         # Run agent
         result = await agent.ainvoke({"messages": [HumanMessage(content=input_msg)]})
 
+        # Extract results
+        messages = result.get("messages", [])
+        collected_data_text = messages[-1].content if messages else "No data collected"
+
         logger.info("Data collection completed")
+
+        # Save step result
+        storage = get_workflow_storage()
+        storage.save_step(
+            workflow_id=state["workflow_id"],
+            step_name="data_collector",
+            data={
+                "error_type": error_type,
+                "log_file": state['log_file_path'],
+                "collected_data": collected_data_text
+            }
+        )
+
         return state
 
     except Exception as e:
@@ -263,6 +309,21 @@ Collected Data: {json.dumps(state.get('collected_data', {}), default=str)}
         state = update_state_with_resolution_plan(state, resolution_plan)
         logger.info("Decision making completed")
 
+        # Extract decision result
+        messages = result.get("messages", [])
+        decision_text = messages[-1].content if messages else "No decision"
+
+        # Save step result
+        storage = get_workflow_storage()
+        storage.save_step(
+            workflow_id=state["workflow_id"],
+            step_name="decision_maker",
+            data={
+                "resolution_plan": resolution_plan,
+                "decision_text": decision_text
+            }
+        )
+
         return state
 
     except Exception as e:
@@ -315,7 +376,24 @@ Execute resolution plan:
         # Run agent
         result = await agent.ainvoke({"messages": [HumanMessage(content=input_msg)]})
 
+        # Extract execution result
+        messages = result.get("messages", [])
+        execution_text = messages[-1].content if messages else "No execution result"
+
         logger.info("Auto execution completed")
+
+        # Save step result
+        storage = get_workflow_storage()
+        storage.save_step(
+            workflow_id=state["workflow_id"],
+            step_name="auto_executor",
+            data={
+                "resolution_plan": resolution_plan,
+                "execution_result": execution_text,
+                "status": "completed"
+            }
+        )
+
         state["next_agent"] = "notification"
         return state
 
@@ -367,12 +445,33 @@ Execution Result: {json.dumps(state.get('execution_result', {}), default=str)}
         # Run agent
         result = await agent.ainvoke({"messages": [HumanMessage(content=input_msg)]})
 
+        # Extract notification result
+        messages = result.get("messages", [])
+        notification_text = messages[-1].content if messages else "No notification"
+
         logger.info("Notification sent")
+
+        # Save step result
+        storage = get_workflow_storage()
+        storage.save_step(
+            workflow_id=state["workflow_id"],
+            step_name="notification",
+            data={
+                "notification": notification_text,
+                "workflow_id": state['workflow_id']
+            }
+        )
 
         # Mark workflow as completed
         state["workflow_status"] = "COMPLETED"
         state["completed_at"] = datetime.now().isoformat()
         state["next_agent"] = "END"
+
+        # Save complete workflow result
+        storage.save_complete(
+            workflow_id=state["workflow_id"],
+            final_state=dict(state)
+        )
 
         return state
 
@@ -493,10 +592,17 @@ async def run_workflow(log_file_path: str, trigger_event: str = "manual", use_mc
 
         workflow_logger.info(f"Workflow completed with status: {final_state['workflow_status']}")
 
+        # Get workflow storage path
+        storage = get_workflow_storage()
+        workflow_dir = storage._get_workflow_dir(final_state["workflow_id"])
+
+        logger.info(f"Workflow results saved to: {workflow_dir}")
+
         return {
             "status": "success",
             "workflow_id": final_state["workflow_id"],
             "workflow_status": final_state["workflow_status"],
+            "workflow_dir": str(workflow_dir),
             "errors": final_state.get("errors", []),
             "final_state": final_state
         }
@@ -550,6 +656,12 @@ async def main_async(args):
 
     if result['status'] == 'success':
         logger.info(f"Workflow Status: {result['workflow_status']}")
+        logger.info(f"Results saved to: {result.get('workflow_dir', 'N/A')}")
+        logger.info("")
+        logger.info("View results:")
+        logger.info(f"  - Summary: {result.get('workflow_dir')}/summary.txt")
+        logger.info(f"  - Complete: {result.get('workflow_dir')}/complete.json")
+        logger.info(f"  - Step files: {result.get('workflow_dir')}/*.json")
         if result.get('errors'):
             logger.warning(f"Errors encountered: {len(result['errors'])}")
             for error in result['errors']:
