@@ -33,7 +33,7 @@ from soc_automation.utils.state import (
 )
 from soc_automation.utils.logger import get_logger, get_workflow_logger
 from soc_automation.utils.workflow_storage import get_workflow_storage
-from soc_automation.agents.error_analyzer import create_error_analyzer_agent, DEFAULT_TOOLS as ERROR_TOOLS
+from soc_automation.agents.error_analyzer.analyzer import run_error_analyzer
 from soc_automation.agents.sop_searcher import create_sop_searcher_agent, DEFAULT_TOOLS as SOP_TOOLS
 from soc_automation.agents.data_collector import create_data_collector_agent, DEFAULT_TOOLS as DATA_TOOLS
 from soc_automation.agents.decision_maker import create_decision_maker_agent, DEFAULT_TOOLS as DECISION_TOOLS
@@ -51,11 +51,14 @@ _mcp_tools = []
 
 async def error_analyzer_node(state: AgentState) -> AgentState:
     """
-    Error analyzer node.
+    Error analyzer node using sub-agents.
 
-    에러 분석 노드
+    에러 분석 노드 (3개 Sub-Agent 사용)
+    - Pattern Matcher: 100+ 패턴 매칭
+    - Severity Assessor: 심각도 재평가
+    - Root Cause Analyzer: 근본 원인 분석
     """
-    logger.info("Running error analyzer...")
+    logger.info("Running error analyzer with sub-agents...")
 
     try:
         # Create LLM
@@ -68,48 +71,82 @@ async def error_analyzer_node(state: AgentState) -> AgentState:
             llm_kwargs["base_url"] = settings.openai.base_url
         llm = ChatOpenAI(**llm_kwargs)
 
-        # Combine default tools with MCP tools
-        all_tools = list(ERROR_TOOLS) + _mcp_tools
+        # Run new sub-agent based error analyzer
+        result = await run_error_analyzer(
+            llm=llm,
+            log_file_path=state['log_file_path'],
+            tools=_mcp_tools
+        )
 
-        # Create agent
-        agent = create_error_analyzer_agent(llm, all_tools)
+        # Check if analysis succeeded
+        if result["status"] == "error":
+            logger.error(f"Error analysis failed: {result.get('error')}")
+            state["errors"].append(f"Error analyzer failed: {result.get('error')}")
+            state["workflow_status"] = "FAILED"
+            return state
 
-        # Prepare input
-        from langchain_core.messages import HumanMessage
-        input_msg = f"Analyze log file: {state['log_file_path']}"
+        # Map error_type to ErrorCategory
+        error_type_str = result.get("error_type", "UNKNOWN")
+        try:
+            # Try to map to ErrorCategory enum
+            if error_type_str.startswith("MEM"):
+                error_category = ErrorCategory.MEMORY
+            elif error_type_str.startswith("BUS"):
+                error_category = ErrorCategory.BUS_PROTOCOL
+            elif error_type_str.startswith("TIM"):
+                error_category = ErrorCategory.TIMEOUT
+            elif error_type_str.startswith("AST"):
+                error_category = ErrorCategory.ASSERTION
+            elif error_type_str.startswith("CFG"):
+                error_category = ErrorCategory.CONFIGURATION
+            elif error_type_str.startswith("PRT"):
+                error_category = ErrorCategory.PROTOCOL
+            elif error_type_str.startswith("CLK") or error_type_str.startswith("PWR"):
+                error_category = ErrorCategory.CLOCK_DOMAIN
+            else:
+                error_category = ErrorCategory.UNKNOWN
+        except:
+            error_category = ErrorCategory.UNKNOWN
 
-        # Run agent
-        result = await agent.ainvoke({"messages": [HumanMessage(content=input_msg)]})
-
-        # Extract analysis (simplified for now - in production, parse the actual output)
-        messages = result.get("messages", [])
-        analysis_text = messages[-1].content if messages else "No analysis"
-
-        # Create error analysis (simplified)
+        # Create ErrorAnalysis object from sub-agent results
         error_analysis = ErrorAnalysis(
-            error_type=ErrorCategory.UNKNOWN,  # Should be parsed from agent output
-            severity=5,  # Should be parsed from agent output
-            error_message=analysis_text[:200],
-            location="unknown",
+            error_type=error_category,
+            severity=result.get("severity", 5),
+            error_message=result.get("error_message", ""),
+            location=result.get("component", "unknown"),
             timestamp=datetime.now().isoformat(),
-            context="",
-            pattern_match=None,
-            root_cause_hypothesis="Pending analysis",
-            affected_modules=[]
+            context=result.get("pattern_result", {}).get("reasoning", ""),
+            pattern_match=result.get("pattern_result", {}).get("pattern_code") if result.get("pattern_matched") else None,
+            root_cause_hypothesis=result.get("root_cause_result", {}).get("hypothesis", ""),
+            affected_modules=[result.get("component")] if result.get("component") else []
         )
 
         # Update state
         state = update_state_with_error_analysis(state, error_analysis)
-        logger.info("Error analysis completed")
 
-        # Save step result
+        # Log completion with details
+        logger.info(f"Error analysis completed:")
+        logger.info(f"  - Error Type: {error_type_str}")
+        logger.info(f"  - Severity: {result.get('severity')}")
+        logger.info(f"  - Pattern Matched: {result.get('pattern_matched')}")
+        if result.get("needs_new_pattern"):
+            logger.warning(f"  - NEW PATTERN NEEDED for UNKNOWN error")
+
+        # Save complete step result with all sub-agent data
         storage = get_workflow_storage()
         storage.save_step(
             workflow_id=state["workflow_id"],
             step_name="error_analyzer",
             data={
                 "error_analysis": error_analysis,
-                "analysis_text": analysis_text
+                "error_type": error_type_str,
+                "severity": result.get("severity"),
+                "pattern_matched": result.get("pattern_matched"),
+                "pattern_result": result.get("pattern_result", {}),
+                "severity_result": result.get("severity_result", {}),
+                "root_cause_result": result.get("root_cause_result", {}),
+                "new_pattern_needed": result.get("new_pattern_needed"),
+                "needs_new_pattern": result.get("needs_new_pattern", False)
             }
         )
 
