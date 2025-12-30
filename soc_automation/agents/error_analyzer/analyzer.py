@@ -304,3 +304,117 @@ def create_error_analyzer_agent(llm, tools: Optional[List] = None):
     # The actual execution is done via run_error_analyzer()
     logger.warning("create_error_analyzer_agent is deprecated. Use run_error_analyzer() directly.")
     return None
+
+
+if __name__ == "__main__":
+    """
+    Test Error Analyzer independently with sub-agents.
+
+    독립적으로 Error Analyzer를 테스트합니다 (3개 Sub-Agent 사용).
+    """
+    import os
+    import sys
+    import asyncio
+    from dotenv import load_dotenv
+    from langchain_openai import ChatOpenAI
+
+    # Add project root to path for imports
+    project_root = Path(__file__).parent.parent.parent.parent
+    sys.path.insert(0, str(project_root))
+
+    load_dotenv()
+
+    print("=== Error Analyzer Test (with Sub-Agents) ===\n")
+
+    # Create sample log file
+    log_dir = Path("/tmp/test_logs")
+    log_dir.mkdir(exist_ok=True)
+
+    # Sample log with cache coherency error (MEM-001)
+    sample_log = """[2024-12-28 10:15:23] INFO: Simulation started
+[2024-12-28 10:15:24] INFO: Clock frequency: 100 MHz
+[2024-12-28 10:15:25] INFO: Loading testbench...
+[2024-12-28 10:15:26] INFO: Initializing DUT...
+[2024-12-28 10:15:30] INFO: Running test case 1...
+[2024-12-28 10:16:45] ERROR: Cache coherency violation detected at address 0x1000
+[2024-12-28 10:16:45] ERROR: Snoop conflict in cache_controller module
+[2024-12-28 10:16:45] ERROR: Expected MESI state: Modified, Actual state: Shared
+[2024-12-28 10:16:45] FATAL: Simulation stopped due to cache coherency violation
+[2024-12-28 10:16:46] INFO: Simulation ended with errors
+"""
+
+    log_file = log_dir / "cache_error.log"
+    with open(log_file, 'w') as f:
+        f.write(sample_log)
+
+    print(f"Created sample log: {log_file}\n")
+
+    # Initialize LLM
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("ERROR: OPENAI_API_KEY not set")
+        print("Please set OPENAI_API_KEY in .env file")
+        exit(1)
+
+    llm_kwargs = {
+        "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        "temperature": 0.7
+    }
+    base_url = os.getenv("OPENAI_BASE_URL")
+    if base_url:
+        llm_kwargs["base_url"] = base_url
+    llm = ChatOpenAI(**llm_kwargs)
+
+    # Run error analyzer
+    async def test():
+        result = await run_error_analyzer(
+            llm=llm,
+            log_file_path=str(log_file)
+        )
+
+        print("\n=== Error Analysis Result ===\n")
+        print(f"Status: {result['status']}")
+
+        if result['status'] == 'success':
+            print(f"\n📋 Error Type: {result['error_type']}")
+            print(f"⚠️  Severity: {result['severity']}/10")
+            print(f"✅ Pattern Matched: {result['pattern_matched']}")
+            print(f"\n📝 Error Message:")
+            print(f"   {result['error_message'][:200]}...")
+
+            if result.get('pattern_matched'):
+                pattern = result.get('pattern_result', {})
+                print(f"\n🎯 Pattern Match:")
+                print(f"   - Code: {pattern.get('pattern_code')}")
+                print(f"   - Name: {pattern.get('pattern_name')}")
+                print(f"   - Confidence: {pattern.get('confidence')}")
+
+            severity = result.get('severity_result', {})
+            print(f"\n📊 Severity Assessment:")
+            print(f"   - Base Severity: {severity.get('base_severity')}")
+            print(f"   - Final Severity: {severity.get('final_severity')}")
+            if severity.get('modifiers'):
+                print(f"   - Modifiers:")
+                for mod in severity['modifiers']:
+                    print(f"     * {mod.get('type')}: {mod.get('value'):+d} - {mod.get('reason')}")
+
+            root_cause = result.get('root_cause_result', {})
+            print(f"\n🔍 Root Cause Analysis:")
+            print(f"   - Hypothesis: {root_cause.get('hypothesis', 'N/A')[:150]}...")
+            print(f"   - Confidence: {root_cause.get('confidence')}")
+            if root_cause.get('recommended_actions'):
+                print(f"   - Recommended Actions:")
+                for i, action in enumerate(root_cause['recommended_actions'][:3], 1):
+                    print(f"     {i}. {action}")
+
+            if result.get('needs_new_pattern'):
+                print(f"\n⚠️  NEW PATTERN NEEDED - Unknown error detected")
+                new_pattern = result.get('new_pattern_needed', {})
+                print(f"   Suggested pattern should be added to pattern database")
+        else:
+            print(f"Error: {result.get('error')}")
+
+    # Run test
+    asyncio.run(test())
+
+    print(f"\n✅ Test completed. Log file: {log_file}")
