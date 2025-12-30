@@ -1,19 +1,89 @@
 """
 Pattern Matcher Sub-Agent.
 
-100+ 회사 패턴 매칭
+100+ 회사 패턴 매칭 + RAG (Retrieval-Augmented Generation)
 """
 
+import os
 import json
 from pathlib import Path
 from typing import Dict, Any
 
 from langchain_core.messages import HumanMessage
 from langchain.agents import create_agent
+from langchain.tools import tool
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
 
 from soc_automation.utils.logger import get_agent_logger
+from soc_automation.config.settings import settings
 
 logger = get_agent_logger("pattern_matcher")
+
+# Set TIKTOKEN cache directory for offline server
+os.environ["TIKTOKEN_CACHE_DIR"] = os.path.expanduser("~/.cache/tiktoken")
+
+# Initialize embeddings and vector store
+_embeddings = None
+_vector_store = None
+
+
+def _init_rag():
+    """Initialize RAG components (embeddings and vector store)."""
+    global _embeddings, _vector_store
+
+    if _embeddings is not None and _vector_store is not None:
+        return  # Already initialized
+
+    try:
+        # Initialize embeddings
+        embeddings_kwargs = {
+            "model": os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-ada-002"),
+        }
+        if settings.openai.base_url:
+            embeddings_kwargs["openai_api_base"] = settings.openai.base_url
+        if settings.openai.api_key:
+            embeddings_kwargs["openai_api_key"] = settings.openai.api_key
+
+        _embeddings = OpenAIEmbeddings(**embeddings_kwargs)
+
+        # Load FAISS vector store
+        faiss_index_path = Path(__file__).parent.parent.parent.parent / "data" / "faiss_index"
+
+        if faiss_index_path.exists():
+            _vector_store = FAISS.load_local(
+                str(faiss_index_path),
+                embeddings=_embeddings,
+                allow_dangerous_deserialization=True
+            )
+            logger.info(f"FAISS vector store loaded from: {faiss_index_path}")
+        else:
+            logger.warning(f"FAISS index not found at: {faiss_index_path}")
+            logger.warning("RAG will not be available. Pattern matching will use LLM only.")
+            _vector_store = None
+
+    except Exception as e:
+        logger.error(f"Failed to initialize RAG components: {e}", exc_info=True)
+        _embeddings = None
+        _vector_store = None
+
+
+@tool(response_format="content_and_artifact")
+def retrieve_context(query: str):
+    """Retrieve information to help answer a query."""
+    if _vector_store is None:
+        return "RAG not available - FAISS index not loaded", []
+
+    try:
+        retrieved_docs = _vector_store.max_marginal_relevance_search(query, k=10, fetch_k=30)
+        serialized = "\n\n".join(
+            (f"Source: {doc.metadata}\nContent: {doc.page_content}")
+            for doc in retrieved_docs
+        )
+        return serialized, retrieved_docs
+    except Exception as e:
+        logger.error(f"Error retrieving context: {e}")
+        return f"Error retrieving context: {str(e)}", []
 
 
 def _load_prompt() -> str:
@@ -33,6 +103,9 @@ async def run_pattern_matcher(
     """
     Run pattern matcher to match error against 100+ company patterns.
 
+    Uses RAG (Retrieval-Augmented Generation) to search similar error patterns
+    from the vector store before matching.
+
     Args:
         llm: Language model
         error_message: Error message to match
@@ -48,17 +121,36 @@ async def run_pattern_matcher(
             "reasoning": str
         }
     """
-    logger.info("Running pattern matcher...")
+    logger.info("Running pattern matcher with RAG...")
 
     try:
+        # Initialize RAG components
+        _init_rag()
+
+        # Prepare tools list
+        tools = []
+        if _vector_store is not None:
+            tools = [retrieve_context]
+            logger.info("RAG enabled - retrieve_context tool available")
+        else:
+            logger.warning("RAG not available - using LLM only")
+
         # Create agent with pattern matcher prompt
         agent = create_agent(
             model=llm,
-            tools=[],  # No tools needed for pattern matching
+            tools=tools,
             system_prompt=_load_prompt()
         )
 
         # Prepare input
+        rag_instruction = ""
+        if _vector_store is not None:
+            rag_instruction = """
+STEP 1: First, use the retrieve_context tool to search for similar error patterns in the knowledge base.
+Query the vector store with the error message to find relevant historical patterns.
+
+"""
+
         input_msg = f"""
 Match this error message against company error patterns:
 
@@ -68,7 +160,7 @@ ERROR MESSAGE:
 ADDITIONAL CONTEXT:
 {log_context if log_context else "No additional context"}
 
-Analyze the error and return a JSON object with:
+{rag_instruction}STEP 2: Analyze the error (using retrieved context if available) and return a JSON object with:
 - matched: true if pattern found with confidence > 0.7, false otherwise
 - pattern_code: the pattern code (e.g., "MEM-001") or null
 - pattern_name: the pattern name or null
@@ -77,6 +169,7 @@ Analyze the error and return a JSON object with:
 - reasoning: explanation of the match or why no match
 
 Be precise. Only match if you are confident (> 0.7).
+If you used retrieve_context, mention which sources helped identify the pattern.
 """
 
         # Run agent
