@@ -4,7 +4,14 @@ This directory contains data files used by the SOC Automation system.
 
 ## FAISS Index for RAG (Retrieval-Augmented Generation)
 
-The `faiss_index/` directory contains the FAISS vector store used by the Pattern Matcher sub-agent for RAG-based pattern matching.
+The `faiss_index/` directory contains the FAISS vector store used by the Pattern Matcher sub-agent for RAG-based error analysis.
+
+**Knowledge Base Contents:**
+1. **Error Patterns**: 100+ company-specific error patterns with codes, keywords, and severity
+2. **SOP Documents**: Standard Operating Procedures for error resolution with step-by-step instructions
+3. **Past Solutions**: Historical successful resolutions and workarounds
+
+This unified knowledge base enables the Error Analyzer to find patterns, retrieve SOPs, and learn from past solutions all in one RAG search.
 
 ### Directory Structure
 
@@ -45,13 +52,20 @@ if embedding_base_url:
 
 embeddings = OpenAIEmbeddings(**embeddings_kwargs)
 
-# Load documents (example: markdown files with error patterns)
+# Load documents: error patterns + SOPs + past solutions
+# Combine all knowledge sources into one directory or load separately
 loader = DirectoryLoader(
-    "path/to/your/error_patterns/",
+    "path/to/your/knowledge_base/",  # Contains: patterns/, sops/, solutions/
     glob="**/*.md",
     loader_cls=TextLoader
 )
 documents = loader.load()
+
+# Or load multiple sources separately and combine
+# pattern_loader = DirectoryLoader("path/to/patterns/", glob="**/*.md", loader_cls=TextLoader)
+# sop_loader = DirectoryLoader("path/to/sops/", glob="**/*.md", loader_cls=TextLoader)
+# solution_loader = DirectoryLoader("path/to/solutions/", glob="**/*.md", loader_cls=TextLoader)
+# documents = pattern_loader.load() + sop_loader.load() + solution_loader.load()
 
 # Split documents into chunks
 text_splitter = RecursiveCharacterTextSplitter(
@@ -180,4 +194,67 @@ copies of the same memory location.
 3. Verify MESI state transitions
 ```
 
-The FAISS index will use these documents to provide relevant context during pattern matching.
+## Example SOP Documents
+
+Store your SOP (Standard Operating Procedure) documents alongside error patterns:
+
+```markdown
+# SOP-TIM-001: Simulation Timeout Resolution
+
+## Problem
+Simulation timeout errors occur when the simulation exceeds the allocated time limit.
+
+## Resolution Steps
+1. Check for infinite loops in the testbench or DUT
+2. Review clock gating logic for stuck signals
+3. Increase simulation timeout in configuration file
+   - Open `sim.cfg`
+   - Update: `timeout = 7200`  (from 3600)
+4. Rerun the simulation
+5. Verify simulation completes successfully
+
+## Prerequisites
+- Access to simulation configuration files
+- Understanding of testbench structure
+- Review privileges for RTL code
+
+## Warnings
+- Do not set timeout too high - may mask real design issues
+- Always investigate root cause before increasing timeout
+- Review simulation logs after timeout change
+
+## Automation
+Steps 3-5 can be automated safely.
+Manual review required for steps 1-2.
+```
+
+## Example Past Solution Documents
+
+```markdown
+# Solution: Cache Coherency Fix - Issue #1234
+
+## Problem
+Cache coherency violations in L2 cache during multi-core stress tests.
+Pattern: MEM-001
+
+## Root Cause
+Race condition in cache controller snoop logic when handling
+simultaneous requests from multiple cores.
+
+## Solution Applied
+Modified `cache_controller.sv` lines 234-267:
+- Added mutex for snoop request handling
+- Implemented priority arbitration
+- Added assertion for conflict detection
+
+## Results
+- Issue resolved in build #5678
+- Verified with 10,000 regression runs
+- No recurrence in 6 months
+
+## Related
+- SOP-MEM-001 was updated based on this fix
+- New assertion SVA-MEM-012 added to catch early
+```
+
+The FAISS index will use all these documents (patterns + SOPs + solutions) to provide comprehensive context during error analysis.
