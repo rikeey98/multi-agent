@@ -96,9 +96,31 @@ This error should be categorized as:
 - Component involved
 - Historical similar cases
 
-### 4. Recommended Actions
+### 4. SOP-Based Solutions (from RAG Knowledge Base)
 
-Based on root cause, suggest actions:
+**Important**: The Pattern Matcher may have retrieved SOP (Standard Operating Procedure) documents from the knowledge base. If SOPs are available in the error analysis context, **USE THEM** to generate recommendations.
+
+**SOP Information to Extract**:
+- Resolution steps from official SOPs
+- Warnings and prerequisites
+- Which steps are automatable
+- Required tools and access
+
+**Integration Strategy**:
+- Combine SOP procedures with root cause hypothesis
+- Adapt generic SOP steps to specific error context
+- Flag steps that can be automated (e.g., config changes, reruns)
+- Include SOP warnings in recommendations
+- Reference SOP ID if available (e.g., "SOP-MEM-001")
+
+**Example**:
+If SOP says "Increase timeout in config file", recommend:
+- "Update simulation timeout in sim.cfg from 3600 to 7200 seconds (SOP-TIM-001, Step 3) [AUTOMATABLE]"
+- "Verify no infinite loops before timeout increase (SOP-TIM-001, Warning)"
+
+### 5. Recommended Actions
+
+Based on root cause AND available SOPs, suggest actions:
 
 **Investigation Actions**:
 - "Review memory controller RTL at line X"

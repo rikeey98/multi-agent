@@ -3,7 +3,7 @@ Main entry point for SOC Automation Multi-Agent System.
 
 SOC 검증 자동화 Multi-Agent 시스템의 메인 진입점
 - LangGraph Supervisor 패턴 사용
-- 7개 Agent 통합 실행
+- 5개 Agent 통합 실행 (Error Analyzer with RAG + 4 agents)
 - MCP 서버 통합
 """
 
@@ -23,7 +23,6 @@ from soc_automation.utils.state import (
     AgentState,
     create_initial_state,
     update_state_with_error_analysis,
-    update_state_with_sop_results,
     update_state_with_collected_data,
     update_state_with_resolution_plan,
     update_state_with_execution_result,
@@ -34,7 +33,6 @@ from soc_automation.utils.state import (
 from soc_automation.utils.logger import get_logger, get_workflow_logger
 from soc_automation.utils.workflow_storage import get_workflow_storage
 from soc_automation.agents.error_analyzer.analyzer import run_error_analyzer
-from soc_automation.agents.sop_searcher import create_sop_searcher_agent, DEFAULT_TOOLS as SOP_TOOLS
 from soc_automation.agents.data_collector import create_data_collector_agent, DEFAULT_TOOLS as DATA_TOOLS
 from soc_automation.agents.decision_maker import create_decision_maker_agent, DEFAULT_TOOLS as DECISION_TOOLS
 from soc_automation.agents.auto_executor import create_auto_executor_agent, DEFAULT_TOOLS as EXECUTOR_TOOLS
@@ -165,72 +163,6 @@ async def error_analyzer_node(state: AgentState) -> AgentState:
         logger.error(f"Error analyzer failed: {e}", exc_info=True)
         state["errors"].append(f"Error analyzer failed: {str(e)}")
         state["workflow_status"] = "FAILED"
-        return state
-
-
-async def sop_searcher_node(state: AgentState) -> AgentState:
-    """
-    SOP searcher node.
-
-    SOP 검색 노드
-    """
-    logger.info("Running SOP searcher...")
-
-    try:
-        # Create LLM
-        llm_kwargs = {
-            "model": settings.openai.model,
-            "temperature": settings.openai.temperature,
-            "api_key": settings.openai.api_key
-        }
-        if settings.openai.base_url:
-            llm_kwargs["base_url"] = settings.openai.base_url
-        llm = ChatOpenAI(**llm_kwargs)
-
-        # Combine default tools with MCP tools
-        all_tools = list(SOP_TOOLS) + _mcp_tools
-
-        # Create agent
-        agent = create_sop_searcher_agent(llm, all_tools)
-
-        # Prepare input
-        from langchain_core.messages import HumanMessage
-        error_type = state.get("error_analysis", {}).get("error_type", "UNKNOWN")
-        error_msg = state.get("error_analysis", {}).get("error_message", "")
-
-        input_msg = f"""
-Search SOP for:
-Error Type: {error_type}
-Error Message: {error_msg}
-SOP Directory: {settings.paths.sop_dir}
-"""
-
-        # Run agent
-        result = await agent.ainvoke({"messages": [HumanMessage(content=input_msg)]})
-
-        # Extract results
-        messages = result.get("messages", [])
-        sop_results_text = messages[-1].content if messages else "No SOP results"
-
-        logger.info("SOP search completed")
-
-        # Save step result
-        storage = get_workflow_storage()
-        storage.save_step(
-            workflow_id=state["workflow_id"],
-            step_name="sop_searcher",
-            data={
-                "error_type": error_type,
-                "error_message": error_msg,
-                "sop_results": sop_results_text
-            }
-        )
-
-        return state
-
-    except Exception as e:
-        logger.error(f"SOP searcher failed: {e}", exc_info=True)
-        state["errors"].append(f"SOP searcher failed: {str(e)}")
         return state
 
 
@@ -560,7 +492,6 @@ def create_workflow() -> StateGraph:
 
     # Add nodes
     workflow.add_node("error_analyzer", error_analyzer_node)
-    workflow.add_node("sop_searcher", sop_searcher_node)
     workflow.add_node("data_collector", data_collector_node)
     workflow.add_node("decision_maker", decision_maker_node)
     workflow.add_node("auto_executor", auto_executor_node)
@@ -570,8 +501,8 @@ def create_workflow() -> StateGraph:
     workflow.set_entry_point("error_analyzer")
 
     # Add edges
-    workflow.add_edge("error_analyzer", "sop_searcher")
-    workflow.add_edge("sop_searcher", "data_collector")
+    # Error Analyzer (with RAG for patterns + SOPs) → Data Collector
+    workflow.add_edge("error_analyzer", "data_collector")
     workflow.add_edge("data_collector", "decision_maker")
 
     # Conditional edges from decision_maker
