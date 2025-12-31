@@ -132,10 +132,22 @@ async def run_pattern_matcher(
             "pattern_name": str | None,
             "base_severity": int | None,
             "confidence": float,
-            "reasoning": str
+            "reasoning": str,
+            "rag_used": bool,
+            "rag_query": str | None,
+            "rag_results": list,
+            "rag_summary": str | None
         }
     """
     logger.info("Running pattern matcher with RAG...")
+
+    # Track RAG usage
+    rag_info = {
+        "rag_used": False,
+        "rag_query": None,
+        "rag_results": [],
+        "rag_summary": None
+    }
 
     try:
         # Initialize RAG components
@@ -193,6 +205,33 @@ If you used retrieve_context, mention which sources helped identify the pattern.
         messages = result.get("messages", [])
         response_text = messages[-1].content if messages else "{}"
 
+        # Extract RAG information from messages
+        from langchain_core.messages import ToolMessage, AIMessage
+        for msg in messages:
+            if isinstance(msg, ToolMessage):
+                # Tool was called (retrieve_context)
+                rag_info["rag_used"] = True
+                rag_info["rag_summary"] = msg.content[:500] if msg.content else "No content"
+
+                # Try to extract retrieved documents
+                if msg.artifact:
+                    rag_info["rag_results"] = [
+                        {
+                            "source": doc.metadata if hasattr(doc, 'metadata') else {},
+                            "content": doc.page_content[:200] if hasattr(doc, 'page_content') else str(doc)[:200]
+                        }
+                        for doc in (msg.artifact if isinstance(msg.artifact, list) else [])[:5]  # Top 5 results
+                    ]
+
+                logger.info(f"RAG was used - retrieved {len(rag_info['rag_results'])} documents")
+
+            elif isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                # Extract query from tool call
+                for tool_call in msg.tool_calls:
+                    if tool_call.get('name') == 'retrieve_context':
+                        rag_info["rag_query"] = tool_call.get('args', {}).get('query', error_message)
+                        logger.info(f"RAG query: {rag_info['rag_query'][:100]}...")
+
         # Try to parse JSON from response
         try:
             # Find JSON in response
@@ -226,11 +265,20 @@ If you used retrieve_context, mention which sources helped identify the pattern.
         logger.info(f"Pattern match result: matched={pattern_result.get('matched')}, "
                    f"pattern={pattern_result.get('pattern_code')}")
 
+        # Add RAG information to result
+        pattern_result.update(rag_info)
+
+        # Log RAG usage summary
+        if rag_info["rag_used"]:
+            logger.info(f"RAG Summary: Retrieved {len(rag_info['rag_results'])} documents for query: {rag_info['rag_query'][:50]}...")
+        else:
+            logger.info("RAG was not used - LLM-only matching")
+
         return pattern_result
 
     except Exception as e:
         logger.error(f"Pattern matcher failed: {e}", exc_info=True)
-        return {
+        result = {
             "matched": False,
             "pattern_code": None,
             "pattern_name": None,
@@ -238,6 +286,8 @@ If you used retrieve_context, mention which sources helped identify the pattern.
             "confidence": 0.0,
             "reasoning": f"Error during pattern matching: {str(e)}"
         }
+        result.update(rag_info)
+        return result
 
 
 if __name__ == "__main__":
@@ -285,6 +335,18 @@ if __name__ == "__main__":
             print(f"Base Severity: {result['base_severity']}")
             print(f"Confidence: {result['confidence']}")
             print(f"Reasoning: {result['reasoning']}")
+
+            # Display RAG information
+            print(f"\n🔍 RAG Information:")
+            print(f"  RAG Used: {result.get('rag_used', False)}")
+            if result.get('rag_used'):
+                print(f"  Query: {result.get('rag_query', 'N/A')}")
+                print(f"  Retrieved Documents: {len(result.get('rag_results', []))}")
+                if result.get('rag_results'):
+                    print(f"  Top Results:")
+                    for idx, doc in enumerate(result['rag_results'][:3], 1):
+                        print(f"    {idx}. {doc.get('content', '')[:100]}...")
+                print(f"  Summary: {result.get('rag_summary', 'N/A')[:150]}...")
             print()
 
     asyncio.run(test())
