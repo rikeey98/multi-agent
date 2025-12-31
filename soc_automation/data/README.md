@@ -31,14 +31,19 @@ from langchain_community.document_loaders import DirectoryLoader, TextLoader
 # Set environment variables
 os.environ["TIKTOKEN_CACHE_DIR"] = os.path.expanduser("~/.cache/tiktoken")
 os.environ["OPENAI_API_KEY"] = "your-api-key"
-os.environ["OPENAI_BASE_URL"] = "your-api-base-url"  # Optional
 
 # Initialize embeddings
-embeddings = OpenAIEmbeddings(
-    model="text-embedding-ada-002",
-    openai_api_base="your-api-base-url",  # Optional
-    openai_api_key="your-api-key"
-)
+embeddings_kwargs = {
+    "model": "text-embedding-ada-002",
+    "openai_api_key": "your-api-key"
+}
+
+# Use dedicated embedding URL if different from LLM URL
+embedding_base_url = os.getenv("OPENAI_EMBEDDING_BASE_URL", "your-embedding-api-url")  # Optional
+if embedding_base_url:
+    embeddings_kwargs["openai_api_base"] = embedding_base_url
+
+embeddings = OpenAIEmbeddings(**embeddings_kwargs)
 
 # Load documents (example: markdown files with error patterns)
 loader = DirectoryLoader(
@@ -95,8 +100,11 @@ OPENAI_API_KEY=sk-your-api-key-here
 OPENAI_EMBEDDING_MODEL=text-embedding-ada-002
 
 # Optional
-OPENAI_BASE_URL=https://your-api-endpoint.com/v1
+OPENAI_BASE_URL=https://your-llm-api-endpoint.com/v1  # Base URL for LLM API
+OPENAI_EMBEDDING_BASE_URL=https://your-embedding-api-endpoint.com/v1  # Base URL for embeddings API (if different)
 ```
+
+**Note**: If `OPENAI_EMBEDDING_BASE_URL` is not set, the system will fall back to using `OPENAI_BASE_URL` for embeddings. This allows you to use separate API endpoints for LLM and embeddings if needed.
 
 ### Offline Server Support
 

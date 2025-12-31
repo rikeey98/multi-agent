@@ -40,12 +40,26 @@ def _init_rag():
         embeddings_kwargs = {
             "model": os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-ada-002"),
         }
-        if settings.openai.base_url:
+
+        # Use dedicated embedding base URL if set, otherwise fall back to LLM base URL
+        embedding_base_url = os.getenv("OPENAI_EMBEDDING_BASE_URL")
+        if embedding_base_url:
+            embeddings_kwargs["openai_api_base"] = embedding_base_url
+        elif settings.openai.base_url:
             embeddings_kwargs["openai_api_base"] = settings.openai.base_url
+
         if settings.openai.api_key:
             embeddings_kwargs["openai_api_key"] = settings.openai.api_key
 
         _embeddings = OpenAIEmbeddings(**embeddings_kwargs)
+
+        # Log which URL is being used
+        if embedding_base_url:
+            logger.info(f"Using dedicated embedding API URL: {embedding_base_url}")
+        elif settings.openai.base_url:
+            logger.info(f"Using shared API URL for embeddings: {settings.openai.base_url}")
+        else:
+            logger.info("Using default OpenAI API for embeddings")
 
         # Load FAISS vector store
         faiss_index_path = Path(__file__).parent.parent.parent.parent / "data" / "faiss_index"
