@@ -129,6 +129,15 @@ async def error_analyzer_node(state: AgentState) -> AgentState:
         logger.info(f"  - Error Type: {error_type_str}")
         logger.info(f"  - Severity: {result.get('severity')}")
         logger.info(f"  - Pattern Matched: {result.get('pattern_matched')}")
+
+        # Log RAG usage information
+        pattern_result = result.get("pattern_result", {})
+        if pattern_result.get("rag_used"):
+            logger.info(f"  - RAG Used: Yes")
+            logger.info(f"  - RAG Retrieved: {len(pattern_result.get('rag_results', []))} documents")
+        else:
+            logger.info(f"  - RAG Used: No (LLM-only matching)")
+
         if result.get("needs_new_pattern"):
             logger.warning(f"  - NEW PATTERN NEEDED for UNKNOWN error")
 

@@ -389,6 +389,20 @@ if __name__ == "__main__":
                 print(f"   - Name: {pattern.get('pattern_name')}")
                 print(f"   - Confidence: {pattern.get('confidence')}")
 
+                # Display RAG information
+                print(f"\n🔍 RAG (Retrieval-Augmented Generation):")
+                print(f"   - RAG Used: {pattern.get('rag_used', False)}")
+                if pattern.get('rag_used'):
+                    print(f"   - Query: {pattern.get('rag_query', 'N/A')[:80]}...")
+                    print(f"   - Retrieved Documents: {len(pattern.get('rag_results', []))}")
+                    if pattern.get('rag_results'):
+                        print(f"   - Top Retrieved Sources:")
+                        for idx, doc in enumerate(pattern['rag_results'][:3], 1):
+                            content = doc.get('content', '')[:100]
+                            print(f"     {idx}. {content}...")
+                else:
+                    print(f"   - Used LLM-only matching (no RAG)")
+
             severity = result.get('severity_result', {})
             print(f"\n📊 Severity Assessment:")
             print(f"   - Base Severity: {severity.get('base_severity')}")
