@@ -14,12 +14,11 @@
 
 ## 시스템 개요
 
-SOC Automation Multi-Agent System은 LangGraph 기반의 워크플로우 오케스트레이션을 사용하여 6개의 전문화된 Agent가 순차적으로 실행되는 시스템입니다.
+SOC Automation Multi-Agent System은 LangGraph 기반의 워크플로우 오케스트레이션을 사용하여 5개의 전문화된 Agent가 순차적으로 실행되는 시스템입니다.
 
 ### 핵심 기능
 - **에러 분석**: 3개 Sub-Agent를 통한 정교한 패턴 매칭 및 근본 원인 분석
-- **RAG 기반 패턴 매칭**: FAISS vector store를 활용한 의미론적 검색
-- **SOP 검색**: 표준 운영 절차 자동 검색 및 적용
+- **RAG 기반 지식 검색**: FAISS vector store를 활용하여 에러 패턴, SOP, 과거 솔루션을 통합 검색
 - **의사결정**: 자동 실행 가능 여부 판단
 - **자동 실행**: 승인된 해결 방안 자동 실행
 - **알림**: 작업 결과 통보
@@ -34,19 +33,18 @@ graph TB
         User[User/CLI] --> Main[Main Workflow<br/>LangGraph StateGraph]
 
         Main --> EA[Error Analyzer Node]
-        Main --> SOP[SOP Searcher Node]
         Main --> DC[Data Collector Node]
         Main --> DM[Decision Maker Node]
         Main --> AE[Auto Executor Node]
         Main --> NF[Notification Node]
 
         subgraph "Error Analyzer (Sub-Agents)"
-            EA --> PM[1. Pattern Matcher<br/>100+ Patterns]
+            EA --> PM[1. Pattern Matcher<br/>100+ Patterns + RAG]
             EA --> SA[2. Severity Assessor<br/>Modifiers]
-            EA --> RCA[3. Root Cause Analyzer<br/>Hypothesis]
+            EA --> RCA[3. Root Cause Analyzer<br/>Hypothesis + SOP Integration]
 
             PM --> RAG{RAG Enabled?}
-            RAG -->|Yes| FAISS[(FAISS Vector Store<br/>data/faiss_index)]
+            RAG -->|Yes| FAISS[(FAISS Vector Store<br/>Patterns + SOPs + Solutions<br/>data/faiss_index)]
             RAG -->|No| LLM1[LLM Only]
             FAISS --> EMB[OpenAI Embeddings<br/>text-embedding-ada-002]
 
@@ -55,8 +53,7 @@ graph TB
             RCA --> LLM
         end
 
-        SOP --> LLM2[ChatOpenAI + Tools]
-        DC --> LLM2
+        DC --> LLM2[ChatOpenAI + Tools]
         DM --> LLM2
         AE --> LLM2
         NF --> LLM2
@@ -65,7 +62,6 @@ graph TB
         MCP --> MongoDB[(MongoDB MCP Server<br/>FastMCP)]
 
         EA --> WS[Workflow Storage]
-        SOP --> WS
         DC --> WS
         DM --> WS
         AE --> WS
@@ -80,7 +76,6 @@ graph TB
         Settings --> EMB
 
         Prompts[config/prompts/<br/>*.md files] --> EA
-        Prompts --> SOP
         Prompts --> DC
         Prompts --> DM
         Prompts --> AE
@@ -113,9 +108,10 @@ graph TB
    - Error Analyzer는 3개의 전문화된 Sub-Agent로 구성
    - 각 Sub-Agent는 특정 작업에 최적화
 
-3. **RAG 통합**
+3. **RAG 통합 지식 베이스**
    - FAISS vector store를 통한 의미론적 검색
-   - 과거 패턴 데이터 활용으로 정확도 향상
+   - 에러 패턴, SOP, 과거 솔루션을 통합 관리
+   - Pattern Matcher가 검색, Root Cause Analyzer가 SOP 활용
 
 4. **Workflow Storage**
    - 모든 실행 결과를 workflow_id별로 저장
@@ -177,30 +173,25 @@ sequenceDiagram
    - 초기 상태 생성
 
 2. **Error Analyzer** (3 Sub-Agents 순차 실행)
-   - Pattern Matcher: 에러 패턴 매칭 (RAG 사용 가능)
+   - Pattern Matcher: 에러 패턴 매칭 + RAG로 패턴/SOP/솔루션 검색
    - Severity Assessor: 심각도 재평가
-   - Root Cause Analyzer: 근본 원인 분석
+   - Root Cause Analyzer: 근본 원인 분석 + SOP 기반 해결 방안 생성
 
-3. **SOP Searcher**
-   - 에러 타입 기반 SOP 검색
-   - 해결 단계 추출
-   - 자동화 가능성 평가
-
-4. **Data Collector**
+3. **Data Collector**
    - 추가 로그 데이터 수집
    - 시스템 상태 정보 수집
 
-5. **Decision Maker**
+4. **Decision Maker**
    - 해결 방안 결정
    - 자동 실행 가능 여부 판단
    - 리스크 평가
 
-6. **Auto Executor** (조건부)
+5. **Auto Executor** (조건부)
    - 자동 실행 승인된 경우에만 실행
    - 해결 방안 자동 적용
    - 롤백 계획 준비
 
-7. **Notification**
+6. **Notification**
    - 최종 결과 알림
    - Workflow 완료 표시
 
@@ -227,7 +218,7 @@ graph LR
         SOC --> MCPS[mcp_servers/]
 
         Agents --> EA[error_analyzer/<br/>Sub-Agents]
-        Agents --> Other[sop_searcher.py<br/>data_collector.py<br/>decision_maker.py<br/>auto_executor.py<br/>notification.py]
+        Agents --> Other[data_collector.py<br/>decision_maker.py<br/>auto_executor.py<br/>notification.py]
 
         EA --> Analyzer[analyzer.py<br/>Orchestrator]
         EA --> SubAgents[sub_agents/]
@@ -247,7 +238,7 @@ graph LR
 
         MCPS --> MongoDB[mongodb_mcp.py<br/>FastMCP]
 
-        Workflows --> WF1[workflow_id_1/<br/>error_analyzer.json<br/>sop_searcher.json<br/>...<br/>complete.json]
+        Workflows --> WF1[workflow_id_1/<br/>error_analyzer.json<br/>data_collector.json<br/>...<br/>complete.json]
 
         Docs --> ArchDoc[ARCHITECTURE.md]
         Docs --> OtherDocs[...]
@@ -266,8 +257,7 @@ graph LR
 Agent 구현 파일들
 - `error_analyzer/`: 3개 Sub-Agent를 포함하는 Error Analyzer
   - `analyzer.py`: Orchestrator
-  - `sub_agents/`: Pattern Matcher, Severity Assessor, Root Cause Analyzer
-- `sop_searcher.py`: SOP 검색 Agent
+  - `sub_agents/`: Pattern Matcher (RAG 통합), Severity Assessor, Root Cause Analyzer (SOP 활용)
 - `data_collector.py`: 데이터 수집 Agent
 - `decision_maker.py`: 의사결정 Agent
 - `auto_executor.py`: 자동 실행 Agent
@@ -297,9 +287,11 @@ MCP 서버 구현
 #### `/workflows/`
 실행 결과 저장 (gitignore)
 - `{workflow_id}/`: 각 workflow별 디렉토리
-  - `error_analyzer.json`: Error Analyzer 결과
-  - `sop_searcher.json`: SOP Searcher 결과
-  - ...
+  - `error_analyzer.json`: Error Analyzer 결과 (RAG 정보 포함)
+  - `data_collector.json`: Data Collector 결과
+  - `decision_maker.json`: Decision Maker 결과
+  - `auto_executor.json`: Auto Executor 결과
+  - `notification.json`: Notification 결과
   - `complete.json`: 최종 결과
   - `summary.txt`: 요약
 
@@ -387,13 +379,23 @@ graph TB
   "rag_query": "Cache coherency violation detected at address 0x1000",
   "rag_results": [
     {
-      "source": {"file": "mem_errors.md", "line": 15},
+      "source": {"file": "patterns/mem_errors.md", "line": 15},
       "content": "# MEM-001: Cache Coherency Violation..."
+    },
+    {
+      "source": {"file": "sops/SOP-MEM-001.md", "line": 1},
+      "content": "# SOP-MEM-001: Cache Coherency Resolution Steps..."
+    },
+    {
+      "source": {"file": "solutions/issue-1234.md", "line": 1},
+      "content": "# Solution: Cache coherency fix..."
     }
   ],
-  "rag_summary": "Source: mem_errors.md\nContent: Cache coherency patterns..."
+  "rag_summary": "Sources: patterns/mem_errors.md, sops/SOP-MEM-001.md, solutions/issue-1234.md"
 }
 ```
+
+**Note**: RAG는 에러 패턴, SOP 문서, 과거 솔루션을 모두 검색하여 반환합니다.
 
 ---
 
@@ -419,12 +421,13 @@ app = workflow.compile(checkpointer=MemorySaver())
 ### 2. Error Analyzer Sub-Agents
 
 #### Pattern Matcher
-**역할**: 100+ 패턴 매칭 + RAG
+**역할**: 100+ 패턴 매칭 + RAG 통합 지식 검색
 
 **특징**:
-- FAISS vector store 통합
+- FAISS vector store 통합 (패턴 + SOP + 솔루션)
 - MMR 검색 (k=10, fetch_k=30)
 - Graceful fallback (LLM-only)
+- 에러 메시지로 관련 패턴, SOP, 과거 솔루션 검색
 
 **반환값**:
 ```python
@@ -434,7 +437,9 @@ app = workflow.compile(checkpointer=MemorySaver())
     "base_severity": int,
     "confidence": float,
     "rag_used": bool,
-    "rag_results": list
+    "rag_results": list,  # 패턴 + SOP + 솔루션 포함
+    "rag_query": str,
+    "rag_summary": str
 }
 ```
 
@@ -455,11 +460,14 @@ app = workflow.compile(checkpointer=MemorySaver())
 ```
 
 #### Root Cause Analyzer
-**역할**: 근본 원인 분석
+**역할**: 근본 원인 분석 + SOP 기반 해결 방안 생성
 
 **특징**:
 - 에러 타입별 분석 전략
 - UNKNOWN 에러: 키워드 기반 검색
+- RAG로 검색된 SOP 정보 활용
+- SOP 절차와 근본 원인 가설 결합
+- 자동화 가능한 단계 플래그 지정
 - 새 패턴 제안
 
 **반환값**:
@@ -467,8 +475,9 @@ app = workflow.compile(checkpointer=MemorySaver())
 {
     "hypothesis": str,
     "confidence": float,
-    "recommended_actions": list,
-    "needs_new_pattern": bool
+    "recommended_actions": list,  # SOP 기반 포함
+    "needs_new_pattern": bool,
+    "sop_references": list  # 사용된 SOP ID
 }
 ```
 
@@ -480,8 +489,7 @@ app = workflow.compile(checkpointer=MemorySaver())
 ```
 workflows/
 └── {workflow_id}/
-    ├── error_analyzer.json      # RAG 정보 포함
-    ├── sop_searcher.json
+    ├── error_analyzer.json      # RAG 정보 포함 (패턴 + SOP + 솔루션)
     ├── data_collector.json
     ├── decision_maker.json
     ├── auto_executor.json

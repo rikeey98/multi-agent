@@ -82,23 +82,23 @@ RAG (Retrieval-Augmented Generation) 설정 및 사용 가이드
 
 ### 전체 시스템 구조
 ```
-User → Main Workflow → 6 Agents (순차 실행)
+User → Main Workflow → 5 Agents (순차 실행)
                     ↓
-           Error Analyzer (3 Sub-Agents)
+           Error Analyzer (3 Sub-Agents + RAG)
                     ↓
               Workflow Storage
 ```
 
 ### Error Analyzer Sub-Agents
 ```
-1. Pattern Matcher (+ RAG) → pattern_code, base_severity
-2. Severity Assessor       → final_severity, modifiers
-3. Root Cause Analyzer     → hypothesis, recommendations
+1. Pattern Matcher (+ RAG)        → pattern_code, base_severity + RAG (패턴/SOP/솔루션)
+2. Severity Assessor              → final_severity, modifiers
+3. Root Cause Analyzer (+ SOP)    → hypothesis, recommendations (SOP 기반)
 ```
 
 ### RAG 프로세스
 ```
-Error Message → FAISS Search → Retrieved Docs → LLM → Pattern Match
+Error Message → FAISS Search (패턴 + SOP + 솔루션) → Retrieved Docs → LLM → Analysis
 ```
 
 전체 다이어그램은 [ARCHITECTURE.md](./ARCHITECTURE.md)를 참조하세요.
@@ -165,21 +165,22 @@ MONGODB_URI=mongodb://localhost:27017
 
 ### Agent
 특정 작업을 수행하는 독립적인 모듈
-- Error Analyzer: 에러 분석
-- SOP Searcher: SOP 검색
+- Error Analyzer: 에러 분석 (RAG 통합)
+- Data Collector: 추가 데이터 수집
 - Decision Maker: 의사결정
-- 등...
+- Auto Executor: 자동 실행
+- Notification: 알림
 
 ### Sub-Agent
 복잡한 Agent를 세분화한 전문화된 모듈
-- Pattern Matcher: 패턴 매칭
+- Pattern Matcher: 패턴 매칭 + RAG 검색
 - Severity Assessor: 심각도 평가
-- Root Cause Analyzer: 근본 원인 분석
+- Root Cause Analyzer: 근본 원인 분석 + SOP 활용
 
 ### RAG (Retrieval-Augmented Generation)
-과거 데이터를 검색하여 LLM 응답 품질 향상
-- FAISS vector store
-- Semantic search
+통합 지식 베이스를 검색하여 LLM 응답 품질 향상
+- FAISS vector store (에러 패턴 + SOP + 과거 솔루션)
+- Semantic search (의미론적 검색)
 - MMR (Maximal Marginal Relevance)
 
 ### Workflow Storage
@@ -280,7 +281,14 @@ grep OPENAI_API_KEY .env
 
 ## 📝 변경 이력
 
-### v1.0.0 (Current)
+### v1.1.0 (Current)
+- ✅ SOP Searcher Agent 제거 (중복 기능 제거)
+- ✅ RAG 통합 지식 베이스로 확장 (패턴 + SOP + 솔루션)
+- ✅ 아키텍처 간소화 (6개 → 5개 Agent)
+- ✅ Root Cause Analyzer에 SOP 통합 기능 추가
+- ✅ 문서 업데이트
+
+### v1.0.0
 - ✅ Error Analyzer Sub-Agent 구조 구현
 - ✅ RAG (FAISS) 통합
 - ✅ Workflow Storage 구현
@@ -295,4 +303,4 @@ grep OPENAI_API_KEY .env
 
 ---
 
-**마지막 업데이트**: 2024-12-28
+**마지막 업데이트**: 2024-12-31 (v1.1.0 - SOP Searcher 제거 및 RAG 통합)
